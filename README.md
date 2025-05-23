@@ -1,31 +1,33 @@
-📝 School Management System – Assignment Submission
-✅ Live Link (Hosted on Render)
-🌐 Base URL:
+🏫 School Management System API
+A simple Node.js and Express.js-based API for managing schools and students, including nearby school search functionality.
+
+🌐 Live API Link
+Base URL:
 https://school-management-api-s5g7.onrender.com
 
-📂 GitHub Repository
-💻 GitHub Repo:
+📂 Repository
+GitHub Repo:
 https://github.com/Manikanta416/School-management
 
 📮 Postman Collection
-🔗 Drive Link to Collection JSON File:
-https://drive.google.com/file/d/1VZrKqfBZgUSLuWoAYFghNfnxTZGl8sFp/view?usp=sharing
-
-(Note: This file can be imported into Postman for testing all endpoints.)
+Drive Link:
+Download Postman Collection
 
 📌 API Endpoints
-#	Endpoint	Method	Description
-1	/	GET	Base route, can be used for server up-check.
-2	/health	GET	Checks database and server health status.
-3	/addSchool	POST	Adds a new school with details like name, address, latitude, longitude.
-4	/listSchools?latitude=17.385&longitude=78.4867	GET	Lists schools near the provided latitude and longitude.
-5	/addStudent	POST	Adds a new student with name, age, grade, and school ID.
-6	/students?school_id=1	GET	Retrieves all students from a specific school using school ID.
-7	/deleteSchool/:id	DELETE	Deletes a school by its ID.
-8	/deleteStudent/:id	DELETE	Deletes a student by their ID.
+Method	Endpoint	Description
+GET	/	Base route - returns welcome message or base response
+GET	/health	Checks if the server and DB are connected
+POST	/addSchool	Adds a new school with name, address, latitude, and longitude
+GET	/listSchools?latitude=...&longitude=...	Lists nearby schools based on provided coordinates
+POST	/addStudent	Adds a student with name, age, grade, and school ID
+GET	/students?school_id=...	Lists all students from the given school ID
+DELETE	/deleteSchool/:id	Deletes a school using the school ID
+DELETE	/deleteStudent/:id	Deletes a student using the student ID
 
-🛠 Sample Body Payloads
-➕ Add School (POST /addSchool)
+📤 Sample Payloads
+➕ Add School
+Endpoint: POST /addSchool
+
 json
 Copy
 Edit
@@ -35,7 +37,9 @@ Edit
   "latitude": 17.385,
   "longitude": 78.4867
 }
-➕ Add Student (POST /addStudent)
+➕ Add Student
+Endpoint: POST /addStudent
+
 json
 Copy
 Edit
@@ -45,3 +49,11 @@ Edit
   "grade": "10",
   "school_id": 1
 }
+🛠 Technologies Used
+Node.js
+
+Express.js
+
+MongoDB (with Mongoose)
+
+Render for Deployment
