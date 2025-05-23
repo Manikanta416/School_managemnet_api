@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
@@ -7,16 +6,12 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
 app.use(express.json());
 app.use(cors());
 
-// MySQL Database Connection using environment variables
 let db;
 
-// Function to initialize database
 async function initializeDatabase() {
-    // First connect without specifying database to create it if needed
     const initialDb = mysql.createConnection({
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',
@@ -33,7 +28,6 @@ async function initializeDatabase() {
             
             console.log('Connected to MySQL server');
             
-            // Create database if it doesn't exist
             const dbName = process.env.DB_NAME || 'school_management';
             initialDb.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`, (err) => {
                 if (err) {
@@ -46,7 +40,6 @@ async function initializeDatabase() {
                 console.log(`Database ${dbName} is ready`);
                 initialDb.end();
                 
-                // Now create the main connection with the database
                 db = mysql.createConnection({
                     host: process.env.DB_HOST || 'localhost',
                     user: process.env.DB_USER || 'root',
@@ -54,7 +47,6 @@ async function initializeDatabase() {
                     database: process.env.DB_NAME || 'school_management'
                 });
                 
-                // Connect to the specific database
                 db.connect((err) => {
                     if (err) {
                         console.error('Database connection failed:', err);
@@ -63,8 +55,6 @@ async function initializeDatabase() {
                     }
                     
                     console.log('Connected to MySQL database via XAMPP');
-                    
-                    // Create schools table after successful connection
                     createSchoolsTable();
                     resolve();
                 });
@@ -73,7 +63,6 @@ async function initializeDatabase() {
     });
 }
 
-// Function to create schools table
 function createSchoolsTable() {
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS schools (
@@ -95,9 +84,8 @@ function createSchoolsTable() {
     });
 }
 
-// Utility function to calculate distance between two coordinates (Haversine formula)
 function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Earth's radius in kilometers
+    const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
@@ -109,11 +97,9 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return distance;
 }
 
-// Input validation middleware
 const validateSchoolInput = (req, res, next) => {
     const { name, address, latitude, longitude } = req.body;
     
-    // Check if all required fields are present
     if (!name || !address || latitude === undefined || longitude === undefined) {
         return res.status(400).json({
             success: false,
@@ -121,7 +107,6 @@ const validateSchoolInput = (req, res, next) => {
         });
     }
     
-    // Validate data types
     if (typeof name !== 'string' || typeof address !== 'string') {
         return res.status(400).json({
             success: false,
@@ -129,7 +114,6 @@ const validateSchoolInput = (req, res, next) => {
         });
     }
     
-    // Validate latitude and longitude
     const lat = parseFloat(latitude);
     const lon = parseFloat(longitude);
     
@@ -154,7 +138,6 @@ const validateSchoolInput = (req, res, next) => {
         });
     }
     
-    // Validate string lengths
     if (name.trim().length === 0 || name.length > 255) {
         return res.status(400).json({
             success: false,
@@ -169,7 +152,6 @@ const validateSchoolInput = (req, res, next) => {
         });
     }
     
-    // Store validated values
     req.validatedData = {
         name: name.trim(),
         address: address.trim(),
@@ -180,9 +162,6 @@ const validateSchoolInput = (req, res, next) => {
     next();
 };
 
-// API Routes
-
-// 1. Add School API
 app.post('/addSchool', validateSchoolInput, (req, res) => {
     const { name, address, latitude, longitude } = req.validatedData;
     
@@ -211,11 +190,9 @@ app.post('/addSchool', validateSchoolInput, (req, res) => {
     });
 });
 
-// 2. List Schools API
 app.get('/listSchools', (req, res) => {
     const { latitude, longitude } = req.query;
     
-    // Validate required parameters
     if (!latitude || !longitude) {
         return res.status(400).json({
             success: false,
@@ -223,7 +200,6 @@ app.get('/listSchools', (req, res) => {
         });
     }
     
-    // Validate coordinate values
     const userLat = parseFloat(latitude);
     const userLon = parseFloat(longitude);
     
@@ -241,7 +217,6 @@ app.get('/listSchools', (req, res) => {
         });
     }
     
-    // Fetch all schools from database
     const query = 'SELECT * FROM schools ORDER BY created_at DESC';
     
     db.query(query, (err, results) => {
@@ -253,7 +228,6 @@ app.get('/listSchools', (req, res) => {
             });
         }
         
-        // Calculate distance for each school and sort by proximity
         const schoolsWithDistance = results.map(school => {
             const distance = calculateDistance(
                 userLat, 
@@ -264,11 +238,10 @@ app.get('/listSchools', (req, res) => {
             
             return {
                 ...school,
-                distance: Math.round(distance * 100) / 100 // Round to 2 decimal places
+                distance: Math.round(distance * 100) / 100
             };
         });
         
-        // Sort schools by distance (closest first)
         schoolsWithDistance.sort((a, b) => a.distance - b.distance);
         
         res.json({
@@ -284,7 +257,6 @@ app.get('/listSchools', (req, res) => {
     });
 });
 
-// Health check endpoint
 app.get('/health', (req, res) => {
     res.json({
         success: true,
@@ -293,7 +265,6 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Handle undefined routes - Simple middleware approach
 app.use((req, res, next) => {
     res.status(404).json({
         success: false,
@@ -301,7 +272,6 @@ app.use((req, res, next) => {
     });
 });
 
-// Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Server error:', err);
     res.status(500).json({
@@ -310,7 +280,6 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start server only after database is initialized
 initializeDatabase()
     .then(() => {
         app.listen(PORT, () => {
@@ -323,7 +292,6 @@ initializeDatabase()
         process.exit(1);
     });
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
     console.log('SIGTERM received, shutting down gracefully');
     db.end();
