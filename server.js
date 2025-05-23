@@ -1,0 +1,337 @@
+// server.js
+const express = require('express');
+const mysql = require('mysql2');
+const cors = require('cors');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Middleware
+app.use(express.json());
+app.use(cors());
+
+// MySQL Database Connection using environment variables
+let db;
+
+// Function to initialize database
+async function initializeDatabase() {
+    // First connect without specifying database to create it if needed
+    const initialDb = mysql.createConnection({
+        host: process.env.DB_HOST || 'localhost',
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || '',
+    });
+
+    return new Promise((resolve, reject) => {
+        initialDb.connect((err) => {
+            if (err) {
+                console.error('Initial database connection failed:', err);
+                reject(err);
+                return;
+            }
+            
+            console.log('Connected to MySQL server');
+            
+            // Create database if it doesn't exist
+            const dbName = process.env.DB_NAME || 'school_management';
+            initialDb.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`, (err) => {
+                if (err) {
+                    console.error('Error creating database:', err);
+                    initialDb.end();
+                    reject(err);
+                    return;
+                }
+                
+                console.log(`Database ${dbName} is ready`);
+                initialDb.end();
+                
+                // Now create the main connection with the database
+                db = mysql.createConnection({
+                    host: process.env.DB_HOST || 'localhost',
+                    user: process.env.DB_USER || 'root',
+                    password: process.env.DB_PASSWORD || '',
+                    database: process.env.DB_NAME || 'school_management'
+                });
+                
+                // Connect to the specific database
+                db.connect((err) => {
+                    if (err) {
+                        console.error('Database connection failed:', err);
+                        reject(err);
+                        return;
+                    }
+                    
+                    console.log('Connected to MySQL database via XAMPP');
+                    
+                    // Create schools table after successful connection
+                    createSchoolsTable();
+                    resolve();
+                });
+            });
+        });
+    });
+}
+
+// Function to create schools table
+function createSchoolsTable() {
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS schools (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            address VARCHAR(500) NOT NULL,
+            latitude FLOAT NOT NULL,
+            longitude FLOAT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `;
+
+    db.query(createTableQuery, (err) => {
+        if (err) {
+            console.error('Error creating table:', err);
+        } else {
+            console.log('Schools table ready');
+        }
+    });
+}
+
+// Utility function to calculate distance between two coordinates (Haversine formula)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+    return distance;
+}
+
+// Input validation middleware
+const validateSchoolInput = (req, res, next) => {
+    const { name, address, latitude, longitude } = req.body;
+    
+    // Check if all required fields are present
+    if (!name || !address || latitude === undefined || longitude === undefined) {
+        return res.status(400).json({
+            success: false,
+            message: 'All fields (name, address, latitude, longitude) are required'
+        });
+    }
+    
+    // Validate data types
+    if (typeof name !== 'string' || typeof address !== 'string') {
+        return res.status(400).json({
+            success: false,
+            message: 'Name and address must be strings'
+        });
+    }
+    
+    // Validate latitude and longitude
+    const lat = parseFloat(latitude);
+    const lon = parseFloat(longitude);
+    
+    if (isNaN(lat) || isNaN(lon)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Latitude and longitude must be valid numbers'
+        });
+    }
+    
+    if (lat < -90 || lat > 90) {
+        return res.status(400).json({
+            success: false,
+            message: 'Latitude must be between -90 and 90'
+        });
+    }
+    
+    if (lon < -180 || lon > 180) {
+        return res.status(400).json({
+            success: false,
+            message: 'Longitude must be between -180 and 180'
+        });
+    }
+    
+    // Validate string lengths
+    if (name.trim().length === 0 || name.length > 255) {
+        return res.status(400).json({
+            success: false,
+            message: 'School name cannot be empty and must be less than 255 characters'
+        });
+    }
+    
+    if (address.trim().length === 0 || address.length > 500) {
+        return res.status(400).json({
+            success: false,
+            message: 'Address cannot be empty and must be less than 500 characters'
+        });
+    }
+    
+    // Store validated values
+    req.validatedData = {
+        name: name.trim(),
+        address: address.trim(),
+        latitude: lat,
+        longitude: lon
+    };
+    
+    next();
+};
+
+// API Routes
+
+// 1. Add School API
+app.post('/addSchool', validateSchoolInput, (req, res) => {
+    const { name, address, latitude, longitude } = req.validatedData;
+    
+    const query = 'INSERT INTO schools (name, address, latitude, longitude) VALUES (?, ?, ?, ?)';
+    
+    db.query(query, [name, address, latitude, longitude], (err, result) => {
+        if (err) {
+            console.error('Database error:', err);
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to add school to database'
+            });
+        }
+        
+        res.status(201).json({
+            success: true,
+            message: 'School added successfully',
+            data: {
+                id: result.insertId,
+                name,
+                address,
+                latitude,
+                longitude
+            }
+        });
+    });
+});
+
+// 2. List Schools API
+app.get('/listSchools', (req, res) => {
+    const { latitude, longitude } = req.query;
+    
+    // Validate required parameters
+    if (!latitude || !longitude) {
+        return res.status(400).json({
+            success: false,
+            message: 'User latitude and longitude are required as query parameters'
+        });
+    }
+    
+    // Validate coordinate values
+    const userLat = parseFloat(latitude);
+    const userLon = parseFloat(longitude);
+    
+    if (isNaN(userLat) || isNaN(userLon)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Latitude and longitude must be valid numbers'
+        });
+    }
+    
+    if (userLat < -90 || userLat > 90 || userLon < -180 || userLon > 180) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid coordinate values'
+        });
+    }
+    
+    // Fetch all schools from database
+    const query = 'SELECT * FROM schools ORDER BY created_at DESC';
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            console.error('Database error:', err);
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to fetch schools from database'
+            });
+        }
+        
+        // Calculate distance for each school and sort by proximity
+        const schoolsWithDistance = results.map(school => {
+            const distance = calculateDistance(
+                userLat, 
+                userLon, 
+                school.latitude, 
+                school.longitude
+            );
+            
+            return {
+                ...school,
+                distance: Math.round(distance * 100) / 100 // Round to 2 decimal places
+            };
+        });
+        
+        // Sort schools by distance (closest first)
+        schoolsWithDistance.sort((a, b) => a.distance - b.distance);
+        
+        res.json({
+            success: true,
+            message: 'Schools retrieved and sorted by proximity',
+            userLocation: {
+                latitude: userLat,
+                longitude: userLon
+            },
+            count: schoolsWithDistance.length,
+            data: schoolsWithDistance
+        });
+    });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({
+        success: true,
+        message: 'School Management API is running',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Handle undefined routes - Simple middleware approach
+app.use((req, res, next) => {
+    res.status(404).json({
+        success: false,
+        message: 'API endpoint not found'
+    });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Server error:', err);
+    res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+    });
+});
+
+// Start server only after database is initialized
+initializeDatabase()
+    .then(() => {
+        app.listen(PORT, () => {
+            console.log(`School Management API server running on port ${PORT}`);
+            console.log(`Health check: http://localhost:${PORT}/health`);
+        });
+    })
+    .catch((err) => {
+        console.error('Failed to initialize database:', err);
+        process.exit(1);
+    });
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    db.end();
+    process.exit(0);
+});
+
+process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    db.end();
+    process.exit(0);
+});
