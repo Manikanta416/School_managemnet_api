@@ -11,8 +11,8 @@ https://github.com/Manikanta416/School-management
 
 📮 Postman Collection
 Drive Link:
-Download Postman Collection
-
+[Download Postman Collection
+](https://drive.google.com/file/d/1ioUeYVrRxoyU8V0RHZssbUZiubdsFpVY/view?usp=drivesdk)
 📌 API Endpoints
 Method	Endpoint	Description
 GET	/	Base route - returns welcome message or base response
